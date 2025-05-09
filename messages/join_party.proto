@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/RWAs-labs/go-tss/messages";
+
+package messages;
+
+message JoinPartyLeaderComm {
+  enum ResponseType {
+    Unknown = 0;
+    Success = 1;
+    Timeout = 2;
+    LeaderNotReady = 3;
+    UnknownPeer = 4;
+  }
+  string ID = 1;
+  string MsgType = 2;
+  ResponseType type = 3;
+  repeated string PeerIDs = 4;
+}

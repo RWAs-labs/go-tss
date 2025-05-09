@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "github.com/RWAs-labs/go-tss/messages";
+
+package messages;
+
+message KeysignSignature {
+  enum Status {
+    Unknown = 0;
+    Success = 1;
+    Failed = 2;
+  }
+  string ID = 1;
+  repeated bytes Signatures= 2;
+  Status KeysignStatus = 3;
+}
