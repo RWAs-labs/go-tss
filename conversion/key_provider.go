@@ -3,6 +3,7 @@ package conversion
 import (
 	"encoding/base64"
 	"encoding/hex"
+
 	"github.com/btcsuite/btcd/btcec/v2"
 	tcrypto "github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/ed25519"

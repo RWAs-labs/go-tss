@@ -19,6 +19,7 @@ import (
 
 	"github.com/RWAs-labs/go-tss/blame"
 	"github.com/RWAs-labs/go-tss/common"
+	"github.com/RWAs-labs/go-tss/config"
 	"github.com/RWAs-labs/go-tss/conversion"
 	"github.com/RWAs-labs/go-tss/logs"
 	"github.com/RWAs-labs/go-tss/messages"
@@ -194,7 +195,7 @@ func (tKeySign *KeySign) SignMessage(
 	}
 
 	select {
-	case <-time.After(time.Second * 5):
+	case <-time.After(config.TSSCommonFinalTimeout):
 		close(tKeySign.commStopChan)
 	case <-tKeySign.tssCommonStruct.GetTaskDone():
 		close(tKeySign.commStopChan)

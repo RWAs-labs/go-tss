@@ -20,6 +20,7 @@ import (
 
 	"github.com/RWAs-labs/go-tss/blame"
 	"github.com/RWAs-labs/go-tss/common"
+	"github.com/RWAs-labs/go-tss/config"
 	"github.com/RWAs-labs/go-tss/conversion"
 	"github.com/RWAs-labs/go-tss/logs"
 	"github.com/RWAs-labs/go-tss/messages"
@@ -115,6 +116,7 @@ func (tKeySign *TssKeySign) SignMessage(
 	}
 
 	// TODO should we return error here? like ErrNotInTheParty
+	// https://github.com/RWAs-labs/go-tss/issues/58
 	if !common.Contains(partiesID, localPartyID) {
 		tKeySign.logger.Info().Msg("we are not in this rounds key sign")
 		return nil, nil
@@ -206,7 +208,7 @@ func (tKeySign *TssKeySign) SignMessage(
 	}
 
 	select {
-	case <-time.After(time.Second * 5):
+	case <-time.After(config.TSSCommonFinalTimeout):
 		close(tKeySign.commStopChan)
 	case <-tKeySign.tssCommonStruct.GetTaskDone():
 		close(tKeySign.commStopChan)
@@ -215,7 +217,7 @@ func (tKeySign *TssKeySign) SignMessage(
 	keySignWg.Wait()
 
 	tKeySign.logger.Info().
-		Stringer("host", tKeySign.p2pComm.GetHost().ID()).
+		Stringer(logs.Host, tKeySign.p2pComm.GetHost().ID()).
 		Msg("Successfully signed the message")
 
 	sort.SliceStable(results, func(i, j int) bool {

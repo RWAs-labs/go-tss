@@ -13,7 +13,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
@@ -22,12 +21,10 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/RWAs-labs/go-tss/config"
 	"github.com/RWAs-labs/go-tss/logs"
 	"github.com/RWAs-labs/go-tss/messages"
 )
-
-// TimeoutConnecting maximum time for wait for peers to connect
-const TimeoutConnecting = 20 * time.Second
 
 // Message that get transfer across the wire
 type Message struct {
@@ -43,7 +40,7 @@ type Communication struct {
 	host             host.Host
 	wg               *sync.WaitGroup
 	stopChan         chan struct{} // channel to indicate whether we should stop
-	subscribers      map[messages.MuseChainTSSMessageType]*MessageIDSubscriber
+	subscribers      map[messages.THORChainTSSMessageType]*MessageIDSubscriber
 	subscriberLocker *sync.Mutex
 	streamCount      int64
 	BroadcastMsgChan chan *messages.BroadcastMsgChan
@@ -85,12 +82,12 @@ func NewCommunication(
 		listenAddr:       addr,
 		wg:               &sync.WaitGroup{},
 		stopChan:         make(chan struct{}),
-		subscribers:      make(map[messages.MuseChainTSSMessageType]*MessageIDSubscriber),
+		subscribers:      make(map[messages.THORChainTSSMessageType]*MessageIDSubscriber),
 		subscriberLocker: &sync.Mutex{},
 		streamCount:      0,
 		BroadcastMsgChan: make(chan *messages.BroadcastMsgChan, 1024),
 		externalAddr:     externalAddr,
-		streamMgr:        NewStreamManager(logger),
+		streamMgr:        NewStreamManager(logger, config.StreamExcessTTL),
 		whitelistedPeers: whitelistedPeers,
 	}, nil
 }
@@ -145,7 +142,7 @@ func (c *Communication) writeToStream(pid peer.ID, msg []byte, msgID string) err
 
 	c.logger.Debug().Stringer(logs.Peer, pid).Msg("Connecting to peer")
 
-	ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+	ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 	defer cancel()
 
 	stream, err := c.host.NewStream(ctx, pid, ProtocolTSS)
@@ -189,12 +186,10 @@ func (c *Communication) readFromStream(stream network.Stream) {
 		Payload: payload,
 	}
 
-	const timeout = 10 * time.Second
-
 	select {
 	case channel <- msg:
 		// all good, message sent
-	case <-time.After(timeout):
+	case <-time.After(config.StreamTimeoutRead):
 		// Note that we aren't logging payload itself
 		// as it might contain sensitive information
 		c.logger.Warn().
@@ -203,7 +198,7 @@ func (c *Communication) readFromStream(stream network.Stream) {
 			Str("protocol", string(stream.Protocol())).
 			Str("message_type", wrappedMsg.MessageType.String()).
 			Int("message_payload_bytes", len(wrappedMsg.Payload)).
-			Float64("timeout", timeout.Seconds()).
+			Float64("timeout", config.StreamTimeoutRead.Seconds()).
 			Msg("readFromStream: timeout to send message to channel")
 	}
 }
@@ -276,33 +271,7 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return addrs
 	}
 
-	scalingLimits := rcmgr.DefaultLimits
-	protocolPeerBaseLimit := rcmgr.BaseLimit{
-		Streams:         4096,
-		StreamsInbound:  2048,
-		StreamsOutbound: 2048,
-		Memory:          512 << 20,
-	}
-	protocolPeerLimitIncrease := rcmgr.BaseLimitIncrease{
-		Streams:         512,
-		StreamsInbound:  256,
-		StreamsOutbound: 256,
-		Memory:          64 << 20,
-	}
-
-	scalingLimits.ProtocolPeerBaseLimit = protocolPeerBaseLimit
-	scalingLimits.ProtocolPeerLimitIncrease = protocolPeerLimitIncrease
-	for _, item := range []protocol.ID{ProtocolJoinPartyWithLeader, ProtocolTSS} {
-		scalingLimits.AddProtocolLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
-		scalingLimits.AddProtocolPeerLimit(item, protocolPeerBaseLimit, protocolPeerLimitIncrease)
-	}
-
-	// Add limits around included libp2p protocols
-	libp2p.SetDefaultServiceLimits(&scalingLimits)
-
-	// Turn the scaling limits into a static set of limits using `.AutoScale`. This
-	// scales the limits proportional to your system memory.
-	limits := scalingLimits.AutoScale()
+	limits := config.ScalingLimits(ProtocolJoinPartyWithLeader, ProtocolTSS)
 
 	// The resource manager expects a limiter, se we create one from our limits.
 	limiter := rcmgr.NewFixedLimiter(limits)
@@ -322,7 +291,8 @@ func (c *Communication) startChannel(privKeyBytes []byte) error {
 		return errors.Wrapf(err, "fail to create connection manager")
 	}
 
-	h, err := libp2p.New(libp2p.ListenAddrs([]maddr.Multiaddr{c.listenAddr}...),
+	h, err := libp2p.New(
+		libp2p.ListenAddrs(c.listenAddr),
 		libp2p.Identity(p2pPriKey),
 		libp2p.AddrsFactory(addressFactory),
 		libp2p.ResourceManager(m),
@@ -383,8 +353,9 @@ func (c *Communication) connectToBootstrapPeers() error {
 		}
 
 		errGroup.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), TimeoutConnecting)
+			ctx, cancel := context.WithTimeout(context.Background(), config.StreamTimeoutConnect)
 			defer cancel()
+
 			if err := c.host.Connect(ctx, *pi); err != nil {
 				c.logger.Error().Err(err).
 					Stringer(logs.Peer, pi.ID).
@@ -438,7 +409,7 @@ func (c *Communication) Stop() error {
 	return nil
 }
 
-func (c *Communication) SetSubscribe(topic messages.MuseChainTSSMessageType, msgID string, channel chan *Message) {
+func (c *Communication) SetSubscribe(topic messages.THORChainTSSMessageType, msgID string, channel chan *Message) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 
@@ -450,7 +421,7 @@ func (c *Communication) SetSubscribe(topic messages.MuseChainTSSMessageType, msg
 	messageIDSubscribers.Subscribe(msgID, channel)
 }
 
-func (c *Communication) getSubscriber(topic messages.MuseChainTSSMessageType, msgID string) chan *Message {
+func (c *Communication) getSubscriber(topic messages.THORChainTSSMessageType, msgID string) chan *Message {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 	messageIDSubscribers, ok := c.subscribers[topic]
@@ -461,7 +432,7 @@ func (c *Communication) getSubscriber(topic messages.MuseChainTSSMessageType, ms
 	return messageIDSubscribers.GetSubscriber(msgID)
 }
 
-func (c *Communication) CancelSubscribe(topic messages.MuseChainTSSMessageType, msgID string) {
+func (c *Communication) CancelSubscribe(topic messages.THORChainTSSMessageType, msgID string) {
 	c.subscriberLocker.Lock()
 	defer c.subscriberLocker.Unlock()
 

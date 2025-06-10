@@ -481,7 +481,7 @@ func (t *TssCommon) hashCheck(localCacheItem *LocalCacheItem, threshold int) err
 
 func (t *TssCommon) sendBulkMsg(
 	wiredMsgType string,
-	tssMsgType messages.MuseChainTSSMessageType,
+	tssMsgType messages.THORChainTSSMessageType,
 	wiredMsgList []BulkWireMsg,
 ) error {
 	// since all the messages in the list is the same round, so it must have the same dest
@@ -542,7 +542,7 @@ func (t *TssCommon) sendBulkMsg(
 	return nil
 }
 
-func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.MuseChainTSSMessageType) error {
+func (t *TssCommon) ProcessOutCh(msg btss.Message, msgType messages.THORChainTSSMessageType) error {
 	msgData, r, err := msg.WireBytes()
 	if err != nil {
 		return errors.Wrap(err, "unable to get wire bytes")
@@ -608,7 +608,7 @@ func (t *TssCommon) applyShare(
 	localCacheItem *LocalCacheItem,
 	threshold int,
 	key string,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 ) error {
 	err := t.hashCheck(localCacheItem, threshold)
 
@@ -650,7 +650,7 @@ func (t *TssCommon) requestShareFromPeer(
 	localCacheItem *LocalCacheItem,
 	threshold int,
 	key string,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 ) error {
 	targetHash, err := t.getMsgHash(localCacheItem, threshold)
 	if err != nil {
@@ -694,7 +694,7 @@ func (t *TssCommon) requestShareFromPeer(
 
 func (t *TssCommon) processVerMsg(
 	broadcastConfirmMsg *messages.BroadcastConfirmMessage,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 ) error {
 	t.logger.Debug().Msg("process ver msg")
 	defer t.logger.Debug().Msg("finish process ver msg")
@@ -731,7 +731,7 @@ func (t *TssCommon) processVerMsg(
 func (t *TssCommon) broadcastHashToPeers(
 	key, msgHash string,
 	peerIDs []peer.ID,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 ) error {
 	if len(peerIDs) == 0 {
 		return errors.New("empty list of peers")
@@ -765,7 +765,7 @@ func (t *TssCommon) broadcastHashToPeers(
 
 func (t *TssCommon) receiverBroadcastHashToPeers(
 	wireMsg *messages.WireMessage,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 ) error {
 	msgHash, err := conversion.BytesToHashString(wireMsg.Message)
 	if err != nil {
@@ -810,7 +810,7 @@ func (t *TssCommon) receiverBroadcastHashToPeers(
 // processTSSMsg
 func (t *TssCommon) processTSSMsg(
 	wireMsg *messages.WireMessage,
-	msgType messages.MuseChainTSSMessageType,
+	msgType messages.THORChainTSSMessageType,
 	forward bool,
 ) error {
 	t.logger.Debug().Msg("process wire message")
@@ -881,7 +881,8 @@ func (t *TssCommon) processTSSMsg(
 }
 
 // TODO should we skip unknown message types?
-func getBroadcastMessageType(msgType messages.MuseChainTSSMessageType) messages.MuseChainTSSMessageType {
+// https://github.com/RWAs-labs/go-tss/issues/57
+func getBroadcastMessageType(msgType messages.THORChainTSSMessageType) messages.THORChainTSSMessageType {
 	switch msgType {
 	case messages.TSSKeyGenMsg:
 		return messages.TSSKeyGenVerMsg
