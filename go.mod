@@ -232,7 +232,7 @@ replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/bnb-chain/tss-lib => github.com/RWAs-labs/tss-lib v0.0.0-20250610041417-0a46d0fc0cfe
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.2-alpha.regen.4
-	github.com/libp2p/go-libp2p => github.com/RWAs-labs/go-libp2p v0.0.0-20250610042116-618caa6ce018
+	github.com/libp2p/go-libp2p => github.com/RWAs-labs/go-libp2p v0.0.0-20250613153711-74aae9d39696
 	gitlab.com/thorchain/binance-sdk => github.com/RWAs-labs/binance-sdk v0.0.0-20250610060335-42165afea23b
 	nhooyr.io/websocket => nhooyr.io/websocket v1.8.17
 )
